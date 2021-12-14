@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import io, { Socket } from 'socket.io-client';
-import Table from './table';
+// import Table from './table';
 
 // import './App.css';
 
@@ -29,14 +29,15 @@ function Standings() {
 
   useEffect(() => {
     const lapFinishedListener = (lap: Lap) => {
+      socket?.emit('getLapData');
       // setLapData([...lapData, lap])
-      setLapData((laps: Lap[]) => {
+      // setLapData((laps: Lap[]) => {
 
-        // console.log({prevMessages, lapData})
-        const newMessages = [...laps, lap];
-        // newMessages[message.id] = message;
-        return newMessages;
-      });
+      //   // console.log({prevMessages, lapData})
+      //   const newMessages = [...laps, lap];
+      //   // newMessages[message.id] = message;
+      //   return newMessages;
+      // });
     };
 
     const lapDataListener = (lapData: Lap[]) => {
@@ -68,7 +69,50 @@ function Standings() {
       </header>
       { socket ? (
         <div className="chat-container">
-          <Table lapData={lapData} />
+          <div className="resultsarchive-wrapper">
+      <div className="resultsarchive-content-header">
+        <h1 className="ResultsArchiveTitle">    2021 Driver Standings        </h1>
+      </div>
+      <div className="resultsarchive-content">
+
+        <div className="table-wrap"><table className="resultsarchive-table">
+          <thead>
+            <tr>
+              <th className="limiter"></th>
+              <th><abbr title="Position">Pos</abbr></th>
+              <th>Driver</th>
+              <th>Car</th>
+              <th><abbr title="Points">Time</abbr></th>
+              <th>Diff</th>
+              <th className="limiter"></th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {lapData
+              .sort((a, b) => a.id - b.id)
+              .map((message, index) => (
+
+                <tr key={message.id}>
+                  <td className="limiter"></td>
+                  <td className="dark">{index + 1}</td>
+                  <td>
+                  <span>{message.name}</span>
+                  </td>
+                  <td>
+                    <span>{message.team}</span>
+                  </td>
+                  <td className="dark bold">{message.time}</td>
+                  <td className="dark bold">{message.diff}</td>
+                  <td className="limiter"></td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
         </div>
       ) : (
         <div>Not Connected</div>

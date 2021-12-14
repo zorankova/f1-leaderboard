@@ -1,0 +1,50 @@
+.adminfix td:nth-of-type(3){
+  width: 10%;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.adminfix td:nth-of-type(4){
+  width: 10%;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.adminfix td:nth-of-type(5){
+  width: 20%;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.resultsarchive-wrapper.adminfix {
+  width: 960px;
+  margin: 0 auto;
+}
+
+button.setdriver {
+  background-color: orange;
+  width: 200px;
+}
+button.setdriver:hover {
+  background-color: green;
+}
+
+button.setdriver.selected {
+  background-color: green;
+}
+
+button.blue {
+  background-color: blue;
+}
+button.blue:hover {
+  background-color: darkblue;
+}
+
+button.red {
+  background-color: red;
+}
+button.red:hover {
+  background-color: darkred;
+}
+
+button.red:disabled {
+  background-color: lightpink;
+}

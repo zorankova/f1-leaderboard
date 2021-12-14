@@ -1,5 +1,6 @@
 import { F1TelemetryClient, constants } from "f1-telemetry-client";
-import { createWriteStream, readFileSync, writeFileSync } from "fs";
+import { access, createWriteStream, readFileSync, writeFileSync } from "fs";
+import moment from "moment";
 // or: const { F1TelemetryClient, constants } = require('f1-telemetry-client');
 
 
@@ -11,13 +12,121 @@ const io = new Server(server, {
 });
 io.listen(3001);
 
+function generateStandings() {
+  const results = users.reduce((acc, user) => ({
+    ...acc, 
+    [user.id]: {
+      name: user.name, 
+      time: null, 
+      timeMs: null,
+      team: "-", 
+      diff: null,
+    
+    }}), {} as {[K: string]: {name: string; time: string; timeMs:number; team: string; diff: string}})
+  
+  let fastestTime = 100000000;
+
+  for (const lap of laps) {
+    if(!lap.finished) {
+      continue;
+    }
+    if(!lap.valid) {
+      continue;
+    }
+
+    if(!lap.driverId) {
+      continue;
+    }
+
+    if(lap.time < (results[lap.driverId].timeMs ?? 100000000)) {
+      results[lap.driverId].timeMs = lap.time
+      if(lap.time < fastestTime) {
+        fastestTime = lap.time;
+      }
+    }
+  }
+
+
+  for (const driverId of Object.keys(results)) {
+    if(results[driverId].timeMs) {
+      results[driverId].time = moment(results[driverId].timeMs).format("m:ss.SSS")
+    }
+    
+    if(results[driverId].timeMs > fastestTime) {
+      const diff = results[driverId].timeMs - fastestTime;
+      results[driverId].diff = diff < 60 * 1000 ?
+        `+${moment(diff).format("s.SSS")}` :
+        `+${moment(diff).format("m:ss.SSS")}`
+      
+    }
+  }
+  console.log("generateStandings", Object.values(results).sort((a, b) => (a.timeMs || 100000000) - (b.timeMs || 100000000)))
+  return Object.values(results).sort((a, b) => (a.timeMs || 100000000) - (b.timeMs || 100000000))
+}
+
 const sockets = [];
 io.on('connection', (socket) => {
   socket.on("getLapData", () => {
     console.log("getlapData")
+    socket.emit("lapData", generateStandings())
+  });
 
-    socket.emit("lapData", laps.filter(l=> l.finished && l.valid))
-  })
+  socket.on("getListOfUsers", () => {
+    console.log("getListOfUsers")
+    socket.emit("listOfUsers", users)
+  });
+
+  socket.on("setAsDriver", (driverId: number) => {
+    console.log("setAsDriver")
+    users.forEach((user) => {
+      user.selected = user.id === driverId;
+    });
+
+    sockets.forEach(s => {
+      s.emit("listOfUsers", users)
+    })
+  });
+
+  socket.on("updateName", ({id, name}) => {
+    console.log("updateName")
+
+    users.forEach((user) => {
+      if(user.id === id) {
+        user.name = name;
+      }
+    });
+
+    const standings = generateStandings();
+    sockets.forEach(s => {
+      s.emit("listOfUsers", users)
+      s.emit("lapData", standings)
+    })
+  });
+
+  socket.on("addUser", ({name}) => {
+    console.log("addUser")
+    users.push({id: users.length + 1, name, hasRecord: false, selected: false})
+  
+    const standings = generateStandings();
+    sockets.forEach(s => {
+      s.emit("listOfUsers", users)
+      s.emit("lapData", standings)
+    })
+  });
+
+  socket.on("deleteUser", (id) => {
+    console.log("deleteUser")
+    const index = users.findIndex(u => u.id === id);
+    if(users[index].hasRecord) {
+      return;
+    }
+    users.splice(index, 1);
+    const standings = generateStandings();
+    sockets.forEach(s => {
+      s.emit("listOfUsers", users)
+      s.emit("lapData", standings)
+    })
+  });
 
   // socket.emit("lapData", laps)
   // new Connection(io, socket);   
@@ -42,13 +151,28 @@ interface LapResult {
   valid: boolean;
   finished: boolean;
   lastFrameIdentifier: number;
+  driverId?: number;
+}
+
+export interface User {
+  id: number;
+  // lapId: number;
+  // time: number;
+  // valid: boolean;
+  // finished: boolean;
+  // lastFrameIdentifier: number;
+  name: string;
+  hasRecord: boolean;
+  selected: boolean;
 }
 
 const laps: LapResult[] = loadLaps();
+const users: User[] = loadUsers();
 
 // io.emit("lapData", laps)
 function exitHandler(options: any, exitCode: any) {
   saveLaps();
+  saveUsers()
   if (options.cleanup) console.log('clean');
   if (exitCode || exitCode === 0) console.log(exitCode);
   if (options.exit) process.exit();
@@ -66,15 +190,6 @@ process.on('SIGUSR2', exitHandler.bind(null, {exit:true}));
 
 const { PACKETS } = constants;
 
-/*
-*   'port' is optional, defaults to 20777
-*   'bigintEnabled' is optional, setting it to false makes the parser skip bigint values,
-*                   defaults to true
-*   'forwardAddresses' is optional, it's an array of Address objects to forward unparsed telemetry to. each address object is comprised of a port and an optional ip address
-*                   defaults to undefined
-*   'skipParsing' is optional, setting it to true will make the client not parse and emit content. You can consume telemetry data using forwardAddresses instead.
-*                   defaults to false
-*/
 const client = new F1TelemetryClient({ port: 20777, bigintEnabled: false });
 var stream = createWriteStream("append.txt", {flags:'a'});
 // client.on(PACKETS.event, console.log);
@@ -114,6 +229,7 @@ function log(what: string,name: string) {
     if(previousLap && previousLapTime > previousLap.time && previousLap.valid) {
       previousLap.time = previousLapTime;
       previousLap.finished = true;
+      previousLap.driverId = users.find(u => u.selected).id
       console.log({previousLap})
       io.sockets.emit("lapFinished", previousLap)
       saveLaps()
@@ -166,6 +282,7 @@ function log(what: string,name: string) {
 log(PACKETS.lapData, "LAP_DATA");
 setInterval(() => {
   saveLaps()
+  saveUsers();
 }, 5 * 1000)
 // to start listening:
 client.start();
@@ -177,6 +294,18 @@ function saveLaps() {
 function loadLaps() {
   try {
   return JSON.parse(readFileSync("laps.json", {encoding: "utf-8"}).toString()) 
+  } catch (error) {
+    return []
+  }
+}
+
+function saveUsers() {
+  writeFileSync("users.json", JSON.stringify(users), {encoding: "utf-8"});
+}
+
+function loadUsers() {
+  try {
+  return JSON.parse(readFileSync("users.json", {encoding: "utf-8"}).toString()) 
   } catch (error) {
     return []
   }
