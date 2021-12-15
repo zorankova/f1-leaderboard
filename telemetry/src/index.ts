@@ -4,6 +4,52 @@ import moment from "moment";
 // or: const { F1TelemetryClient, constants } = require('f1-telemetry-client');
 
 
+const TEAMS = {
+  0: "Mercedes",
+  1: "Ferrari",
+  2: "Red Bull Racing",
+  3: "Wiliams",
+  4: "Aston Martin",
+  5: "Alpine",
+  6: "Alpha Tauri",
+  7: "Haas",
+  8: "McLaren",
+  9: "Alfa Romeo"
+}
+
+const TRACKS = {
+  0: "Melbourne",
+  1: "Paul Ricard",
+  2: "Shanghai",
+  3: "Sakhir (Bahrain)",
+  4: "Catalunya",
+  5: "Monaco",
+  6: "Montreal",
+  7: "Silverstone",
+  8: "Hockenheim",
+  9: "Hungaroring",
+  10: "Spa",
+  11: "Monza",
+  12: "Singapore",
+  13: "Suzuka",
+  14: "Abu Dhabi",
+  15: "Texas",
+  16: "Brazil",
+  17: "Austria",
+  18: "Sochi",
+  19: "Mexico",
+  20: "Baku (Azerbaijan)",
+  21: "Sakhir Short",
+  22: "Silverstone Short",
+  23: "Texas Short",
+  24: "Suzuka Short",
+  25: "Hanoi",
+  26: "Zandvoort",
+  27: "Imola",
+  28: "Portimão",
+  29: "Jeddah",
+}
+
 import { Server } from "socket.io";
 const server = require('http').createServer();
 
@@ -11,7 +57,8 @@ const io = new Server(server, {
   cors: {    origin: "http://localhost:3000",    methods: ["GET", "POST"]  }
 });
 io.listen(3001);
-
+let currentTeam = "";
+let currentTrack = "";
 function generateStandings() {
   const results = users.reduce((acc, user) => ({
     ...acc, 
@@ -40,6 +87,7 @@ function generateStandings() {
 
     if(lap.time < (results[lap.driverId].timeMs ?? 100000000)) {
       results[lap.driverId].timeMs = lap.time
+      results[lap.driverId].team = lap.team
       if(lap.time < fastestTime) {
         fastestTime = lap.time;
       }
@@ -60,7 +108,7 @@ function generateStandings() {
       
     }
   }
-  console.log("generateStandings", Object.values(results).sort((a, b) => (a.timeMs || 100000000) - (b.timeMs || 100000000)))
+  // console.log("generateStandings", Object.values(results).sort((a, b) => (a.timeMs || 100000000) - (b.timeMs || 100000000)))
   return Object.values(results).sort((a, b) => (a.timeMs || 100000000) - (b.timeMs || 100000000))
 }
 
@@ -82,9 +130,8 @@ io.on('connection', (socket) => {
       user.selected = user.id === driverId;
     });
 
-    sockets.forEach(s => {
-      s.emit("listOfUsers", users)
-    })
+    io.sockets.emit("listOfUsers", users)
+    
   });
 
   socket.on("updateName", ({id, name}) => {
@@ -97,21 +144,19 @@ io.on('connection', (socket) => {
     });
 
     const standings = generateStandings();
-    sockets.forEach(s => {
-      s.emit("listOfUsers", users)
-      s.emit("lapData", standings)
-    })
+    io.sockets.emit("listOfUsers", users)
+      io.sockets.emit("lapData", standings)
+    
   });
 
   socket.on("addUser", ({name}) => {
     console.log("addUser")
-    users.push({id: users.length + 1, name, hasRecord: false, selected: false})
+    users.push({id: Date.now(), name, hasRecord: false, selected: false})
   
     const standings = generateStandings();
-    sockets.forEach(s => {
-      s.emit("listOfUsers", users)
-      s.emit("lapData", standings)
-    })
+    io.sockets.emit("listOfUsers", users)
+      io.sockets.emit("lapData", standings)
+    
   });
 
   socket.on("deleteUser", (id) => {
@@ -122,10 +167,11 @@ io.on('connection', (socket) => {
     }
     users.splice(index, 1);
     const standings = generateStandings();
-    sockets.forEach(s => {
-      s.emit("listOfUsers", users)
-      s.emit("lapData", standings)
-    })
+    // sockets.forEach(s => {
+      io.sockets.emit("listOfUsers", users)
+      io.sockets.emit("lapData", standings)
+    // })
+    
   });
 
   // socket.emit("lapData", laps)
@@ -148,6 +194,7 @@ interface LapResult {
   id: number;
   lapId: number;
   time: number;
+  team?: string;
   valid: boolean;
   finished: boolean;
   lastFrameIdentifier: number;
@@ -191,16 +238,22 @@ process.on('SIGUSR2', exitHandler.bind(null, {exit:true}));
 const { PACKETS } = constants;
 
 const client = new F1TelemetryClient({ port: 20777, bigintEnabled: false });
-var stream = createWriteStream("append.txt", {flags:'a'});
+// var stream = createWriteStream("append.txt", {flags:'a'});
 // client.on(PACKETS.event, console.log);
 // client.on(PACKETS.motion, function(...args) {
 //   console.log("MOTION", ...args);
 // });
 // client.on(PACKETS.carSetups, console.log);
 // client.on(PACKETS.lapData, console.log);
-// client.on(PACKETS.session, console.log);
-// client.on(PACKETS.participants, console.log);
-// client.on(PACKETS.carTelemetry, console.log);
+client.on(PACKETS.participants, function(event) {
+  // const teamId = event?.m_participants?.find(p => p.m_networkId === 0)?.m_teamId;
+  // console.log("team", teamId, TEAMS[teamId], event?.m_participants)
+  currentTeam = TEAMS[event?.m_participants?.find(p => p.m_networkId === 0)?.m_teamId]
+});
+client.on(PACKETS.session, function(event) {
+  // console.log("track", event?.m_trackId, TRACKS[event?.m_trackId])
+  currentTrack = TRACKS[event?.m_trackId];
+});// client.on(PACKETS.carTelemetry, console.log);
 // client.on(PACKETS.carStatus, console.log);
 // client.on(PACKETS.finalClassification, console.log);
 // client.on(PACKETS.lobbyInfo, console.log);
@@ -229,9 +282,14 @@ function log(what: string,name: string) {
     if(previousLap && previousLapTime > previousLap.time && previousLap.valid) {
       previousLap.time = previousLapTime;
       previousLap.finished = true;
-      previousLap.driverId = users.find(u => u.selected).id
-      console.log({previousLap})
+      const user = users.find(u => u.selected);
+      previousLap.driverId = user.id
+      user.hasRecord = true;
+
+      previousLap.team = currentTeam;
+      // console.log({previousLap})
       io.sockets.emit("lapFinished", previousLap)
+      io.sockets.emit("listOfUsers", users)
       saveLaps()
     }
 
@@ -270,8 +328,8 @@ function log(what: string,name: string) {
 
     lastFrameIdentifier = currentFrameIdentifier
     
-    console.log(laps);
-    stream.write(JSON.stringify({m_header: event.m_header, m_lapData: data}, null, 2) + "\n")
+    // console.log(laps);
+    // stream.write(JSON.stringify({m_header: event.m_header, m_lapData: data}, null, 2) + "\n")
   });
 }
 
