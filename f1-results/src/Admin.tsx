@@ -34,7 +34,7 @@ function Admin() {
       setUsers(() => {
         // const newMessages = {...prevMessages};
         // delete newMessages[messageID];
-        console.log(users)
+        // console.log(users)
         return users;
       });
     };
@@ -42,7 +42,7 @@ function Admin() {
     // socket?.on('lapFinished', lapFinishedListener);
     socket?.on('listOfUsers', listOfUsersListener);
     socket?.on('connect', () => {
-      console.log("connect")
+      // console.log("connect")
       socket.emit("getListOfUsers")
     });
 
