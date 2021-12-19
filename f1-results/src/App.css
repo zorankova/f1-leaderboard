@@ -48,3 +48,26 @@ button.red:hover {
 button.red:disabled {
   background-color: lightpink;
 }
+
+
+.logo {
+  width:  50px;
+  margin: -14px;
+}
+
+.resultsarchive-table td:nth-child(2) {
+  width: 10%;
+}
+
+.resultsarchive-table td:nth-child(3) {
+  width: 70px;
+}
+
+.resultsarchive-table td:nth-child(5) {
+  width: 25%;
+}
+
+
+.resultsarchive-table td:nth-child(6) {
+  width: 15%;
+}

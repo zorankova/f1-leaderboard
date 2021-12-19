@@ -64,6 +64,7 @@ function generateStandings() {
     ...acc, 
     [user.id]: {
       name: user.name, 
+      avatarSeed: user.avatarSeed,
       time: null, 
       timeMs: null,
       team: "-", 
@@ -103,6 +104,8 @@ function generateStandings() {
   for (const driverId of Object.keys(results)) {
     if(results[driverId].timeMs) {
       results[driverId].time = moment(results[driverId].timeMs).format("m:ss.SSS")
+    } else {
+      results[driverId].time = "-"
     }
     
     if(results[driverId].timeMs > fastestTime) {
@@ -162,6 +165,7 @@ io.on('connection', (socket) => {
       hasRecord: false, 
       selected: false,
       softDeleted: false,
+      avatarSeed: `${name}${Math.round(Math.random() * 1000000)}`
       })
   
     const standings = generateStandings();
@@ -221,6 +225,7 @@ export interface User {
   // finished: boolean;
   // lastFrameIdentifier: number;
   name: string;
+  avatarSeed: string;
   hasRecord: boolean;
   selected: boolean;
   softDeleted: boolean;
