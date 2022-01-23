@@ -1,8 +1,10 @@
 import React from 'react';
 import { Routes, Route, BrowserRouter } from "react-router-dom";
-import './table.css';
 
 import './App.css';
+
+import './bozicni.css';
+
 import Standings from './Standings';
 import Admin from './Admin';
 

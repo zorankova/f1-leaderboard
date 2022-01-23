@@ -64,13 +64,14 @@ function generateStandings() {
     ...acc, 
     [user.id]: {
       name: user.name, 
+      softDeleted: user.softDeleted,
       avatarSeed: user.avatarSeed,
       time: null, 
       timeMs: null,
       team: "-", 
       diff: null,
-    
-    }}), {} as {[K: string]: {name: string; time: string; timeMs:number; team: string; diff: string}})
+      pos: "-",
+    }}), {} as {[K: string]: {name: string; time: string; timeMs:number; team: string; diff: string; softDeleted: boolean; pos: string}})
   
   let fastestTime = 100000000;
 
@@ -85,7 +86,7 @@ function generateStandings() {
     if(!lap.driverId) {
       continue;
     }
-    console.log({users, lap})
+    // console.log({users, lap})
     const user = users.find(u => u.id === lap.driverId)
     if(user?.softDeleted) {
       continue;
@@ -117,7 +118,32 @@ function generateStandings() {
     }
   }
   // console.log("generateStandings", Object.values(results).sort((a, b) => (a.timeMs || 100000000) - (b.timeMs || 100000000)))
-  return Object.values(results).sort((a, b) => (a.timeMs || 100000000) - (b.timeMs || 100000000))
+  const standings =  Object.values(results).filter(u => !u.softDeleted).sort((a, b) => (a.timeMs || 100000000) - (b.timeMs || 100000000))
+
+  let pos = 1;
+  
+  for (let index = 0; index < standings.length; index++) {
+    const element = standings[index];
+
+    if(!element.timeMs) {
+      element.pos = "-";
+      continue;
+    }
+
+    if(index === 0) {
+      element.pos = pos.toString();
+      // pos++;
+      continue;
+    }
+    if(element.timeMs === standings[index - 1].timeMs) {
+      element.pos = pos.toString();
+    } else {
+      pos++;
+      element.pos = pos.toString();   
+    }
+  }
+
+  return standings;
 }
 
 const sockets = [];
@@ -129,7 +155,7 @@ io.on('connection', (socket) => {
 
   socket.on("getListOfUsers", () => {
     console.log("getListOfUsers")
-    socket.emit("listOfUsers", users)
+    socket.emit("listOfUsers", listOfUsersFormatted())
   });
 
   socket.on("setAsDriver", (driverId: number) => {
@@ -138,7 +164,7 @@ io.on('connection', (socket) => {
       user.selected = user.id === driverId;
     });
 
-    io.sockets.emit("listOfUsers", users)
+    io.sockets.emit("listOfUsers", listOfUsersFormatted())
     
   });
 
@@ -152,7 +178,7 @@ io.on('connection', (socket) => {
     });
 
     const standings = generateStandings();
-    io.sockets.emit("listOfUsers", users)
+    io.sockets.emit("listOfUsers", listOfUsersFormatted())
       io.sockets.emit("lapData", standings)
     
   });
@@ -162,14 +188,14 @@ io.on('connection', (socket) => {
     users.push({
       id: Date.now(), 
       name,
-      hasRecord: false, 
+      // hasRecord: false, 
       selected: false,
       softDeleted: false,
-      avatarSeed: `${name}${Math.round(Math.random() * 1000000)}`
+      avatarSeed: name, //`${name}${Math.round(Math.random() * 1000000)}`
       })
   
     const standings = generateStandings();
-    io.sockets.emit("listOfUsers", users)
+    io.sockets.emit("listOfUsers", listOfUsersFormatted())
       io.sockets.emit("lapData", standings)
     
   });
@@ -177,14 +203,15 @@ io.on('connection', (socket) => {
   socket.on("deleteUser", (id) => {
     console.log("deleteUser")
     const index = users.findIndex(u => u.id === id);
-    if(users[index].hasRecord) {
+    const hasRecord = laps.find(l => l.valid && l.finished && l.driverId === id)
+    if(hasRecord) {
       return;
     }
     users[index].softDeleted = true;
     // users.splice(index, 1);
     const standings = generateStandings();
     // sockets.forEach(s => {
-      io.sockets.emit("listOfUsers", users)
+      io.sockets.emit("listOfUsers", listOfUsersFormatted())
       io.sockets.emit("lapData", standings)
     // })
     
@@ -226,7 +253,7 @@ export interface User {
   // lastFrameIdentifier: number;
   name: string;
   avatarSeed: string;
-  hasRecord: boolean;
+  // hasRecord: boolean;
   selected: boolean;
   softDeleted: boolean;
 }
@@ -285,7 +312,7 @@ let lastFrameIdentifier = laps[laps.length -1]?.lastFrameIdentifier || 100000000
 
 function log(what: string,name: string) {
   client.on(what, function(event) {
-    
+    // console.log(event)
     const data = event?.m_lapData?.[0];
 
     const lapNumber = data?.m_currentLapNum
@@ -345,12 +372,12 @@ function log(what: string,name: string) {
           previousLap.time = previousLapTime;
           const user = users.find(u => u.selected);
           previousLap.driverId = user.id
-          user.hasRecord = true;
+          // user.hasRecord = true;
     
           // previousLap.team = currentTeam;
           // console.log({previousLap})
           io.sockets.emit("lapFinished", previousLap)
-          io.sockets.emit("listOfUsers", users)
+          io.sockets.emit("listOfUsers", listOfUsersFormatted())
           saveLaps()
         }
       }
@@ -381,7 +408,7 @@ setInterval(() => {
 client.start();
 
 function saveLaps() {
-  writeFileSync("laps.json", JSON.stringify(laps), {encoding: "utf-8"});
+  writeFileSync("laps.json", JSON.stringify(laps, null, 2), {encoding: "utf-8"});
 }
 
 function loadLaps() {
@@ -393,7 +420,7 @@ function loadLaps() {
 }
 
 function saveUsers() {
-  writeFileSync("users.json", JSON.stringify(users), {encoding: "utf-8"});
+  writeFileSync("users.json", JSON.stringify(users, null, 2), {encoding: "utf-8"});
 }
 
 function loadUsers() {
@@ -406,3 +433,11 @@ function loadUsers() {
 
 // and when you want to stop:
 // client.stop();
+
+function listOfUsersFormatted() {
+
+  return users.filter(u => !u.softDeleted).map(u => ({
+    ...u,
+    hasRecord: !!laps.find(l => l.valid && l.finished && l.driverId === u.id),
+  }))
+}

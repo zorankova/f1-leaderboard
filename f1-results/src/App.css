@@ -71,3 +71,21 @@ button.red:disabled {
 .resultsarchive-table td:nth-child(6) {
   width: 15%;
 }
+
+
+.resultsarchive-table td {
+  font-size: 2rem;
+}
+
+.resultsarchive-table tbody tr:nth-child(2n+1) {
+  background: #eee;
+}
+
+
+.resultsarchive-table tbody tr:nth-child(2n) {
+  background: #fff;
+}
+
+body {
+  background-color: white;
+}

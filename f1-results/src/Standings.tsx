@@ -15,6 +15,7 @@ export interface Standing {
   // valid: boolean;
   // finished: boolean;
   // lastFrameIdentifier: number;
+  pos: string;
   avatarSeed: string;
   name: string;
   team: string;
@@ -66,7 +67,7 @@ function Standings() {
       socket?.off('connect');
     };
   }, [socket]); 
-
+console.log({lapData})
   return (
     <div className="App">
       { socket ? (
@@ -93,11 +94,11 @@ function Standings() {
           <tbody>
             {lapData
               .sort((a, b) => a.id - b.id)
-              .map((message, index) => (
+              .map((message) => (
 
                 <tr key={message.id}>
                   <td className="limiter"></td>
-                  <td className="dark">{index + 1}</td>
+                  <td className="dark">{message.pos}</td>
                   <td>
   
 <div className="logo" dangerouslySetInnerHTML={{__html: createAvatar(style, {
