@@ -3,8 +3,6 @@ import { Routes, Route, BrowserRouter } from "react-router-dom";
 
 import './App.css';
 
-import './bozicni.css';
-
 import Standings from './Standings';
 import Admin from './Admin';
 

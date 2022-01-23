@@ -1,18 +1,1 @@
-[
-  {
-    "id": 0,
-    "lapId": 58,
-    "time": 40840,
-    "valid": false,
-    "finished": true,
-    "lastFrameIdentifier": 231625
-  },
-  {
-    "id": 1,
-    "lapId": 1,
-    "time": 20066,
-    "valid": true,
-    "finished": false,
-    "lastFrameIdentifier": 874
-  }
-]
+[]
